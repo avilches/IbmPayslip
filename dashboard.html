@@ -1,0 +1,1276 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IBM Payroll Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root {
+  --ibm-blue: #0F62FE;
+  --ibm-blue-hover: #0353E9;
+  --bg: #161616;
+  --bg2: #262626;
+  --bg3: #363636;
+  --bg4: #474747;
+  --border: #525252;
+  --text: #F4F4F4;
+  --text2: #C6C6C6;
+  --text3: #8D8D8D;
+  --c-net:    #42be65;
+  --c-bonus:  #6fdc8c;
+  --c-tax:    #fa4d56;
+  --c-btax:   #ff8389;
+  --c-401k:   #4589ff;
+  --c-hsa:    #08bdba;
+  --c-hc:     #be95ff;
+  --c-ltd:    #8d8d8d;
+  --c-transit:#ff832b;
+  --c-espp:   #f1c21b;
+  --c-other:  #6e6e6e;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'IBM Plex Sans', system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+/* ── HEADER ─────────────────────────────────────────────── */
+header {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 1rem 1.5rem;
+  display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;
+}
+.logo { display: flex; align-items: center; gap: 0.75rem; }
+.logo svg { flex-shrink: 0; }
+.logo-text h1 { font-size: 1.1rem; font-weight: 600; letter-spacing: 0.01em; }
+.logo-text p { font-size: 0.75rem; color: var(--text3); }
+.header-filters {
+  margin-left: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.4rem;
+}
+.year-tabs { display: flex; gap: 0.25rem; margin-left: auto; flex-wrap: wrap; }
+.header-filters .year-tabs { margin-left: 0; }
+.view-tabs { display: flex; gap: 0.25rem; }
+.year-tab {
+  padding: 0.4rem 1rem; border: 1px solid var(--border); border-radius: 2px;
+  background: transparent; color: var(--text2); cursor: pointer; font-size: 0.875rem;
+}
+.year-tab:hover { background: var(--bg3); color: var(--text); }
+.year-tab.active { background: var(--ibm-blue); border-color: var(--ibm-blue); color: #fff; font-weight: 600; }
+
+/* ── KPI CARDS ──────────────────────────────────────────── */
+.kpi-row {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 1px; background: var(--border); border-top: 1px solid var(--border);
+}
+.kpi {
+  background: var(--bg2); padding: 1.25rem 1.5rem;
+  display: flex; flex-direction: column; gap: 0.25rem;
+}
+.kpi-label { font-size: 0.7rem; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; }
+.kpi-value { font-size: 1.75rem; font-weight: 700; line-height: 1; }
+.kpi-sub { font-size: 0.75rem; color: var(--text3); margin-top: 0.1rem; }
+.kpi-green { color: var(--c-net); }
+.kpi-red { color: var(--c-tax); }
+.kpi-blue { color: var(--c-401k); }
+.kpi-teal { color: var(--c-hsa); }
+.kpi-amber { color: var(--c-espp); }
+
+/* ── MAIN LAYOUT ────────────────────────────────────────── */
+.main { padding: 1.5rem; display: flex; flex-direction: column; gap: 1.5rem; }
+
+/* ── CONTROLS PANEL ─────────────────────────────────────── */
+.controls-panel {
+  background: var(--bg2); border: 1px solid var(--border); padding: 1rem 1.25rem;
+  display: flex; align-items: flex-start; gap: 1.5rem; flex-wrap: wrap;
+}
+.ctrl-section { display: flex; flex-direction: column; gap: 0.5rem; }
+.ctrl-label { font-size: 0.7rem; color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em; }
+.checkboxes-grid { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.cb-item {
+  display: flex; align-items: center; gap: 0.4rem; cursor: pointer;
+  padding: 0.3rem 0.6rem; border: 1px solid var(--border); border-radius: 2px;
+  user-select: none;
+}
+.cb-item:hover { background: var(--bg3); }
+.cb-item.disabled { opacity: 0.35; }
+.cb-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+.cb-label { font-size: 0.78rem; color: var(--text2); }
+.cb-item input { display: none; }
+
+/* ── VIEW MODE TABS ────────────────────────────────────────── */
+.view-mode-tabs { display: flex; gap: 0.25rem; }
+.view-mode-tab {
+  padding: 0.4rem 0.8rem; border: 1px solid var(--border); border-radius: 2px;
+  background: transparent; color: var(--text2); cursor: pointer; font-size: 0.78rem;
+}
+.view-mode-tab:hover { background: var(--bg3); }
+.view-mode-tab.active { background: var(--ibm-blue); border-color: var(--ibm-blue); color: #fff; }
+
+/* ── PAYSLIP CHART CARD ─────────────────────────────────── */
+.chart-card {
+  background: var(--bg2); border: 1px solid var(--border); padding: 1.25rem;
+}
+.chart-title {
+  font-size: 0.85rem; font-weight: 600; color: var(--text2);
+  margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;
+}
+.chart-title span { font-size: 0.7rem; color: var(--text3); font-weight: 400; }
+
+/* ── HORIZONTAL BAR CHART ────────────────────────────────── */
+.ps-chart-wrap { overflow-y: auto; }
+
+.ps-grid {
+  display: grid;
+  grid-template-columns: 90px 1fr 280px;
+  gap: 0;
+}
+
+/* Column headers */
+.ps-col-header {
+  font-size: 0.65rem; color: var(--text3); text-transform: uppercase;
+  letter-spacing: 0.08em; padding: 0 0 0.5rem 0;
+}
+
+/* Row divider */
+.ps-divider {
+  grid-column: 1 / -1;
+  height: 1px; background: var(--bg3); margin: 3px 0;
+}
+
+/* Per-row cells */
+.ps-label {
+  font-size: 0.78rem; color: var(--text2); font-weight: 600;
+  padding: 5px 8px 5px 0;
+  display: flex; align-items: center;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ps-label.partial { color: var(--c-transit); }
+
+.ps-bar-cell {
+  padding: 5px 8px 5px 0;
+  display: flex; align-items: center;
+  min-height: 36px;
+}
+
+.ps-bar {
+  display: flex; height: 26px;
+  border-radius: 2px; overflow: visible;
+  position: relative;
+}
+.ps-bar > .ps-seg:first-child { border-radius: 2px 0 0 2px; }
+.ps-bar > .ps-seg:last-child { border-radius: 0 2px 2px 0; }
+.ps-bar > .ps-seg:only-child { border-radius: 2px; }
+
+.ps-seg {
+  height: 100%; flex-shrink: 0;
+  position: relative;
+  min-width: 3px;
+  cursor: pointer;
+}
+.ps-seg:hover::after {
+  content: attr(data-tip);
+  position: absolute; left: 50%; top: -2px; transform: translate(-50%, -100%);
+  background: #1e1e1e; border: 1px solid #525252;
+  color: #f4f4f4; font-size: 0.7rem; padding: 3px 6px;
+  white-space: nowrap; z-index: 100; pointer-events: none;
+  border-radius: 2px;
+}
+
+.ps-val {
+  font-size: 0.7rem; color: var(--text3);
+  margin-left: 6px; white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.ps-events-cell {
+  padding: 4px 0 4px 8px;
+  display: flex; flex-direction: column; justify-content: center; gap: 2px;
+  border-left: 1px solid var(--bg3);
+}
+.ps-event {
+  font-size: 0.71rem; color: var(--text3); line-height: 1.35;
+}
+
+/* ── DUAL MODE (bruto arriba, desglose abajo) ───────────────── */
+.ps-dual-row { display: flex; flex-direction: column; gap: 2px; width: 100%; }
+.ps-bar-gross { height: 10px; background: var(--c-ltd); opacity: 0.5; border-radius: 2px; }
+.ps-bar-breakdown { height: 22px; display: flex; border-radius: 2px; overflow: visible; }
+.ps-bar-breakdown > .ps-seg:first-child { border-radius: 2px 0 0 2px; }
+.ps-bar-breakdown > .ps-seg:last-child { border-radius: 0 2px 2px 0; }
+.ps-bar-breakdown > .ps-seg:only-child { border-radius: 2px; }
+
+/* ── WATERFALL MODE (cascada) ────────────────────────────────── */
+.ps-waterfall { display: flex; flex-direction: column; gap: 1px; width: 100%; }
+.ps-wf-row { display: flex; align-items: center; height: 18px; position: relative; }
+.ps-wf-label { width: 70px; font-size: 0.65rem; color: var(--text3); flex-shrink: 0; }
+.ps-wf-bar-container { flex: 1; position: relative; height: 14px; }
+.ps-wf-bar { height: 14px; border-radius: 2px; position: absolute; }
+.ps-wf-bar.positive { background: var(--c-net); left: 0; }
+.ps-wf-bar.negative { background: var(--c-tax); }
+.ps-wf-bar.pretax { background: var(--c-401k); }
+.ps-wf-bar.posttax { background: var(--c-other); }
+.ps-wf-bar.result { background: var(--c-net); left: 0; }
+.ps-wf-connector { position: absolute; width: 1px; background: var(--border); }
+
+/* ── DIVERGENT MODE (neto izq, deducciones der) ──────────────── */
+.ps-divergent { display: flex; height: 26px; align-items: center; width: 100%; }
+.ps-div-left { display: flex; justify-content: flex-end; flex: 1; height: 100%; }
+.ps-div-center { width: 2px; background: var(--border); height: 100%; flex-shrink: 0; }
+.ps-div-right { display: flex; flex: 1; height: 100%; }
+.ps-div-seg { height: 100%; }
+
+/* ── SECONDARY CHARTS ─────────────────────────────────────── */
+.chart-small { height: 240px; position: relative; }
+.charts-bottom { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+@media (max-width: 780px) { .charts-bottom { grid-template-columns: 1fr; } }
+
+/* ── COMPARISON TABLE ─────────────────────────────────────── */
+.comparison-card { background: var(--bg2); border: 1px solid var(--border); padding: 1.25rem; }
+.comp-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.comp-table th { text-align: left; padding: 0.5rem 0.75rem; color: var(--text3); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); }
+.comp-table td { padding: 0.5rem 0.75rem; border-bottom: 1px solid #333; }
+.comp-table tr:last-child td { border-bottom: none; }
+.comp-table .num { text-align: right; font-variant-numeric: tabular-nums; font-family: 'IBM Plex Mono', monospace; }
+.comp-table .positive { color: var(--c-net); }
+.comp-table .negative { color: var(--c-tax); }
+.partial-note { font-size: 0.72rem; color: var(--c-transit); font-style: italic; }
+
+/* ── SAVINGS RING ────────────────────────────────────────── */
+.savings-stats { display: flex; flex-direction: column; gap: 0.75rem; margin-top: 1rem; }
+.stat-row { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid var(--bg3); }
+.stat-row:last-child { border-bottom: none; }
+.stat-name { font-size: 0.8rem; color: var(--text2); display: flex; align-items: center; gap: 0.5rem; }
+.stat-dot { width: 8px; height: 8px; border-radius: 50%; }
+.stat-val { font-size: 0.85rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <svg width="40" height="16" viewBox="0 0 40 16" fill="none">
+      <rect width="4" height="16" fill="#0F62FE"/>
+      <rect x="6" width="4" height="16" fill="#0F62FE"/>
+      <rect x="12" width="4" height="7" fill="#0F62FE"/>
+      <rect x="12" y="9" width="4" height="7" fill="#0F62FE"/>
+      <rect x="18" y="0" width="4" height="7" fill="#0F62FE"/>
+      <rect x="18" y="9" width="4" height="7" fill="#0F62FE"/>
+      <rect x="24" width="4" height="16" fill="#0F62FE"/>
+    </svg>
+    <div class="logo-text">
+      <h1>Payroll Dashboard</h1>
+      <p>IBM Payroll Dashboard</p>
+    </div>
+  </div>
+  <div class="header-filters">
+    <div class="year-tabs">
+      <button class="year-tab" data-year="2024">2024</button>
+      <button class="year-tab active" data-year="2025">2025</button>
+      <button class="year-tab" data-year="2026">2026</button>
+      <button class="year-tab" data-year="all">Todos</button>
+    </div>
+    <div class="view-tabs">
+      <button id="btnMonthly" class="year-tab active" onclick="setView('monthly')">📅 Mensual</button>
+      <button id="btnPayslip" class="year-tab" onclick="setView('payslip')">📋 Quincenas</button>
+    </div>
+  </div>
+</header>
+
+<!-- KPI CARDS -->
+<div class="kpi-row" id="kpiRow">
+  <div class="kpi"><div class="kpi-label">Salario Bruto</div><div class="kpi-value kpi-amber" id="kpi-gross">—</div><div class="kpi-sub" id="kpi-gross-sub">—</div></div>
+  <div class="kpi"><div class="kpi-label">Neto Cobrado</div><div class="kpi-value kpi-green" id="kpi-net">—</div><div class="kpi-sub" id="kpi-net-sub">—</div></div>
+  <div class="kpi"><div class="kpi-label">Impuestos</div><div class="kpi-value kpi-red" id="kpi-tax">—</div><div class="kpi-sub" id="kpi-tax-sub">—</div></div>
+  <div class="kpi"><div class="kpi-label">401k Aportado</div><div class="kpi-value kpi-blue" id="kpi-401k">—</div><div class="kpi-sub" id="kpi-401k-sub">—</div></div>
+  <div class="kpi"><div class="kpi-label">HSA Aportado</div><div class="kpi-value kpi-teal" id="kpi-hsa">—</div><div class="kpi-sub" id="kpi-hsa-sub">—</div></div>
+  <div class="kpi"><div class="kpi-label">% Impuestos</div><div class="kpi-value kpi-red" id="kpi-taxrate">—</div><div class="kpi-sub" id="kpi-taxrate-sub">% del bruto</div></div>
+</div>
+
+<!-- MAIN CONTENT -->
+<div class="main">
+
+  <!-- CONTROLS -->
+  <div class="controls-panel">
+    <div class="ctrl-section">
+      <div class="ctrl-label">Mostrar segmentos</div>
+      <div class="checkboxes-grid" id="cbGrid"></div>
+    </div>
+    <div class="ctrl-section">
+      <div class="ctrl-label">Modo de vista</div>
+      <div class="view-mode-tabs">
+        <button class="view-mode-tab active" data-mode="single">Actual</button>
+        <button class="view-mode-tab" data-mode="dual">Dual</button>
+        <button class="view-mode-tab" data-mode="waterfall">Cascada</button>
+        <button class="view-mode-tab" data-mode="divergent">Divergente</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN PAYSLIP CHART -->
+  <div class="chart-card">
+    <div class="chart-title">
+      Desglose por nómina
+      <span id="chartSubtitle">— ¿A dónde va cada dólar?</span>
+    </div>
+  
+    <div class="ps-chart-wrap">
+      <div id="payslipChart"></div>
+    </div>
+  </div>
+
+  <!-- BOTTOM CHARTS -->
+  <div class="charts-bottom">
+    <div class="chart-card">
+      <div class="chart-title">% Impuestos nómina a nómina <span>Neto efectivo incluye bonos</span></div>
+      <div class="chart-small"><canvas id="taxRateChart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Desglose de impuestos <span id="taxPieLabel">año completo</span></div>
+      <div class="chart-small"><canvas id="taxPieChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- COMPARISON TABLE + SAVINGS -->
+  <div class="charts-bottom">
+    <div class="comparison-card">
+      <div class="chart-title">📊 Comparativa por año</div>
+      <table class="comp-table" id="compTable">
+        <thead><tr>
+          <th>Año</th>
+          <th class="num">Bruto</th>
+          <th class="num">Neto</th>
+          <th class="num">% Tax</th>
+          <th class="num">401k</th>
+          <th class="num">HSA</th>
+        </tr></thead>
+        <tbody id="compBody"></tbody>
+      </table>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Ahorro pre-tax acumulado <span id="savingsLabel">—</span></div>
+      <div class="savings-stats" id="savingsStats"></div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  DATA LOADING (from JSON files)
+// ═══════════════════════════════════════════════════════════════
+let DATA = {};
+const AVAILABLE_YEARS = [2024, 2025, 2026];
+
+async function loadData() {
+  for (const year of AVAILABLE_YEARS) {
+    try {
+      const resp = await fetch(`data/${year}.json`);
+      if (resp.ok) {
+        const json = await resp.json();
+        DATA[year] = {
+          system: json.system,
+          payslips: json.payslips,
+          taxBreakdown: json.taxBreakdown,
+          totals: json.annualTotals
+        };
+      }
+    } catch (e) {
+      console.warn(`No se pudo cargar ${year}.json:`, e);
+    }
+  }
+  // Verificar que al menos un año se cargó
+  if (Object.keys(DATA).length === 0) {
+    document.body.innerHTML = `
+      <div style="padding:2rem;color:#fa4d56;font-family:sans-serif;">
+        <h2>Error: No se pudieron cargar los datos</h2>
+        <p>Asegúrate de ejecutar el servidor local:</p>
+        <pre style="background:#262626;padding:1rem;margin:1rem 0;">uv run server.py</pre>
+        <p>Y abre <a href="http://localhost:8000/dashboard.html" style="color:#4589ff;">http://localhost:8000/dashboard.html</a></p>
+      </div>
+    `;
+    throw new Error('No data loaded');
+  }
+}
+
+// Placeholder para mantener estructura hasta que se carguen los datos
+// (el código de init reemplazará esto)
+// ═══════════════════════════════════════════════════════════════
+//  REMOVED: Embedded DATA block - now loaded dynamically from JSON
+// ═══════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════
+//  SERIES CONFIG
+// ═══════════════════════════════════════════════════════════════
+const SERIES = [
+  { key:"net",       label:"Neto",           color:"#42be65", field:"net",          defaultOn:true  },
+  { key:"bonus_net", label:"Bonus Neto",     color:"#6fdc8c", field:"bonus_net",    defaultOn:true  },
+  { key:"k401",      label:"401k",           color:"#4589ff", field:"k401",         defaultOn:true  },
+  { key:"hsa",       label:"HSA",            color:"#08bdba", field:"hsa",          defaultOn:true  },
+  { key:"hc",        label:"Health Care",    color:"#be95ff", field:"hc",           defaultOn:true  },
+  { key:"ltd",       label:"LTD",            color:"#8d8d8d", field:"ltd",          defaultOn:false },
+  { key:"transit",   label:"Transit",        color:"#ff832b", field:"transit",      defaultOn:false },
+  { key:"espp",      label:"ESPP",           color:"#f1c21b", field:"espp",         defaultOn:true  },
+  { key:"other_post",label:"Life+Legal",     color:"#6e6e6e", field:"other_post",   defaultOn:false },
+  { key:"taxes",     label:"Impuestos",      color:"#fa4d56", field:"taxes",        defaultOn:true  },
+  { key:"bonus_tax", label:"Bonus Imp.",     color:"#ff8389", field:"bonus_taxes",  defaultOn:true  },
+];
+
+// ═══════════════════════════════════════════════════════════════
+//  STATE + PERSISTENCE
+// ═══════════════════════════════════════════════════════════════
+const STORAGE_KEY = 'payslip-dashboard-prefs';
+
+function loadPrefs() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    return saved ? JSON.parse(saved) : null;
+  } catch (e) { return null; }
+}
+
+function savePrefs() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      currentYear, viewMode, chartMode, seriesState
+    }));
+  } catch (e) { /* ignore */ }
+}
+
+const savedPrefs = loadPrefs();
+let currentYear = savedPrefs?.currentYear || "2026";
+let viewMode = savedPrefs?.viewMode || 'monthly';
+let chartMode = savedPrefs?.chartMode || 'single';
+let seriesState = {};
+if (savedPrefs?.seriesState) {
+  seriesState = savedPrefs.seriesState;
+} else {
+  SERIES.forEach(s => seriesState[s.key] = s.defaultOn);
+}
+
+let taxRateChart = null;
+let taxPieChart = null;
+
+// ═══════════════════════════════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════════════════════════════
+function fmt(n) { if (!n && n !== 0) return "—"; return "$" + Number(n).toLocaleString("en-US", {minimumFractionDigits:0, maximumFractionDigits:0}); }
+function fmt2(n) { return "$" + Number(n).toLocaleString("en-US", {minimumFractionDigits:2, maximumFractionDigits:2}); }
+function pct(n) { return Number(n).toFixed(1) + "%"; }
+
+// ─── Agregación mensual ─────────────────────────────────────────
+function groupByMonth(payslips) {
+  const byMonth = {};
+  const order = [];
+  payslips.forEach(p => {
+    const mo = p.period_end ? p.period_end.slice(0,7) : p.id.slice(0,7);
+    if (!byMonth[mo]) {
+      byMonth[mo] = null;
+      order.push(mo);
+    }
+    byMonth[mo] = mergePayslip(byMonth[mo], p, mo);
+  });
+  return order.map(mo => byMonth[mo]);
+}
+
+function mergePayslip(acc, p, mo) {
+  if (!acc) {
+    // First payslip of month — copy all fields, add monthly label
+    const mmMap = {'01':'Ene','02':'Feb','03':'Mar','04':'Abr','05':'May','06':'Jun',
+                  '07':'Jul','08':'Ago','09':'Sep','10':'Oct','11':'Nov','12':'Dic'};
+    const yy = mo.slice(2,4), mm = mo.slice(5,7);
+    return {
+      id: mo, period_end: mo, label: mmMap[mm] + " '" + yy,
+      gross:p.gross, taxes:p.taxes, preTax:p.preTax, postTax:p.postTax, net:p.net,
+      k401:p.k401, hsa:p.hsa, hc:p.hc, ltd:p.ltd, transit:p.transit,
+      espp:p.espp, other_post:p.other_post, espp_dd:p.espp_dd||0,
+      bonus_gross:p.bonus_gross, bonus_taxes:p.bonus_taxes, bonus_net:p.bonus_net,
+      bonus_label:p.bonus_label,
+      events:[...p.events],
+      _count: 1
+    };
+  }
+  // Second (or more) payslip of same month — sum fields
+  const NUM = ['gross','taxes','preTax','postTax','net','k401','hsa','hc','ltd',
+               'transit','espp','other_post','espp_dd',
+               'bonus_gross','bonus_taxes','bonus_net'];
+  const merged = Object.assign({}, acc);
+  NUM.forEach(f => { merged[f] = r2((merged[f]||0) + (p[f]||0)); });
+  merged.events = [...acc.events, ...p.events];
+  merged.taxRate = merged.gross > 0 ? r2(merged.taxes / merged.gross * 100) : 0;
+  // Keep first non-empty bonus label
+  if (!merged.bonus_label && p.bonus_label) merged.bonus_label = p.bonus_label;
+  merged._count = (acc._count || 1) + 1;
+  return merged;
+}
+
+function r2(v) { return Math.round(v * 100) / 100; }
+
+function getEntries(year) {
+  let ps = [];
+  if (year === "all") {
+    AVAILABLE_YEARS.forEach(y => {
+      if (DATA[y]?.payslips) ps.push(...DATA[y].payslips);
+    });
+  } else {
+    ps = DATA[year]?.payslips || [];
+  }
+  return viewMode === 'monthly' ? groupByMonth(ps) : ps;
+}
+
+// Keep alias for secondary charts (always use payslip-level data for tax rate)
+function getMonths(year) { return getEntries(year); }
+
+function setView(mode) {
+  viewMode = mode;
+  document.getElementById('btnMonthly').classList.toggle('active', mode === 'monthly');
+  document.getElementById('btnPayslip').classList.toggle('active', mode === 'payslip');
+  savePrefs();
+  buildPayslipChart();
+  buildTaxRateChart();
+}
+
+function getYearData(year) {
+  if (year === "all") {
+    const totals = { gross:0, taxes:0, preTax:0, postTax:0, net:0, k401:0, hsa:0, hc:0 };
+    AVAILABLE_YEARS.forEach(y => {
+      const t = DATA[y]?.totals;
+      if (!t) return;
+      totals.gross += t.gross || 0;
+      totals.taxes += t.taxes || 0;
+      totals.preTax += t.preTax || 0;
+      totals.postTax += t.postTax || 0;
+      totals.net += t.net || 0;
+      totals.k401 += t.k401 || 0;
+      totals.hsa += t.hsa || 0;
+      totals.hc += t.hc || 0;
+    });
+    totals.taxRate = totals.gross > 0 ? (totals.taxes / totals.gross * 100) : 0;
+    return totals;
+  }
+  return DATA[year]?.totals || { gross:0, taxes:0, taxRate:0, preTax:0, postTax:0, net:0, k401:0, hsa:0, hc:0 };
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  BUILD CHECKBOXES
+// ═══════════════════════════════════════════════════════════════
+function buildCheckboxes() {
+  const grid = document.getElementById("cbGrid");
+  grid.innerHTML = "";
+  SERIES.forEach(s => {
+    const item = document.createElement("label");
+    item.className = "cb-item" + (seriesState[s.key] ? "" : " disabled");
+    item.dataset.key = s.key;
+    item.innerHTML = `
+      <input type="checkbox" ${seriesState[s.key] ? "checked" : ""}>
+      <div class="cb-dot" style="background:${s.color}"></div>
+      <span class="cb-label">${s.label}</span>
+    `;
+    item.querySelector("input").addEventListener("change", e => {
+      seriesState[s.key] = e.target.checked;
+      item.classList.toggle("disabled", !e.target.checked);
+      savePrefs();
+      updateAll();
+    });
+    grid.appendChild(item);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  KPI UPDATE
+// ═══════════════════════════════════════════════════════════════
+function updateKPIs() {
+  const t = getYearData(currentYear);
+  const label = currentYear === "all" ? "ago'24–feb'26" : currentYear;
+  document.getElementById("kpi-gross").textContent = fmt(t.gross);
+  document.getElementById("kpi-gross-sub").textContent = `Total ${label}`;
+  document.getElementById("kpi-net").textContent = fmt(t.net);
+  document.getElementById("kpi-net-sub").textContent = `${pct(t.gross > 0 ? t.net/t.gross*100 : 0)} del bruto`;
+  document.getElementById("kpi-tax").textContent = fmt(t.taxes);
+  document.getElementById("kpi-tax-sub").textContent = `${pct(t.taxRate)} del bruto`;
+  document.getElementById("kpi-401k").textContent = fmt(t.k401);
+  document.getElementById("kpi-401k-sub").textContent = `${pct(t.gross > 0 ? t.k401/t.gross*100 : 0)} del bruto`;
+  document.getElementById("kpi-hsa").textContent = fmt(t.hsa);
+  document.getElementById("kpi-hsa-sub").textContent = `tú · IBM no incluido`;
+  document.getElementById("kpi-taxrate").textContent = pct(t.taxRate);
+  document.getElementById("kpi-taxrate-sub").textContent = (currentYear === "2026") ? "% parcial — año en curso" : "% del bruto";
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  MAIN PAYSLIP CHART (HTML bars, horizontal)
+// ═══════════════════════════════════════════════════════════════
+function buildPayslipChart() {
+  const entries = getEntries(currentYear);
+  const container = document.getElementById("payslipChart");
+  container.innerHTML = "";
+
+  if (!entries.length) {
+    container.innerHTML = `<div style="color:var(--text3);font-size:0.85rem;padding:1rem">Sin datos para este período.</div>`;
+    return;
+  }
+
+  // Find max gross for scale (includes bonus gross)
+  const maxGross = Math.max(...entries.map(m => (m.gross||0) + (m.bonus_gross||0) - (m.espp_dd||0)));
+
+  switch(chartMode) {
+    case 'dual':      renderDualBars(container, entries, maxGross); break;
+    case 'waterfall': renderWaterfall(container, entries, maxGross); break;
+    case 'divergent': renderDivergent(container, entries, maxGross); break;
+    default:          renderSingleBar(container, entries, maxGross); break;
+  }
+}
+
+// ─── SINGLE BAR (modo actual) ───────────────────────────────────
+function renderSingleBar(container, entries, maxGross) {
+  const grid = document.createElement("div");
+  grid.className = "ps-grid";
+
+  // Column headers
+  const h1 = document.createElement("div");
+  h1.className = "ps-col-header";
+  h1.textContent = "Período";
+  const h2 = document.createElement("div");
+  h2.className = "ps-col-header";
+  h2.textContent = "Desglose del bruto";
+  const h3 = document.createElement("div");
+  h3.className = "ps-col-header";
+  h3.style.paddingLeft = "8px";
+  h3.textContent = "Eventos";
+  grid.appendChild(h1);
+  grid.appendChild(h2);
+  grid.appendChild(h3);
+
+  entries.forEach((m, idx) => {
+    const netTotal = (m.net || 0) + (m.bonus_net || 0);
+    const cashGross = (m.gross || 0) + (m.bonus_gross || 0) - (m.espp_dd || 0);
+    const barWidthPct = (cashGross / maxGross * 100).toFixed(2);
+
+    const labelDiv = document.createElement("div");
+    labelDiv.className = "ps-label";
+    labelDiv.textContent = m.label;
+
+    const barCell = document.createElement("div");
+    barCell.className = "ps-bar-cell";
+
+    const bar = document.createElement("div");
+    bar.className = "ps-bar";
+    bar.style.width = barWidthPct + "%";
+
+    SERIES.forEach(s => {
+      if (!seriesState[s.key]) return;
+      const v = m[s.field] || 0;
+      if (v <= 0) return;
+      // Porcentaje relativo al cashGross de esta entrada (para llenar la barra)
+      const segPct = (v / cashGross * 100).toFixed(3);
+      const seg = document.createElement("div");
+      seg.className = "ps-seg";
+      seg.style.cssText = `width:${segPct}%;background:${s.color};`;
+      seg.dataset.tip = `${s.label}: ${fmt2(v)}`;
+      bar.appendChild(seg);
+    });
+
+    const valSpan = document.createElement("span");
+    valSpan.className = "ps-val";
+    valSpan.textContent = `${fmt(netTotal)} neto`;
+    if (m.bonus_gross > 0) {
+      valSpan.textContent += ` · ${fmt(m.bonus_gross)} bonus`;
+      valSpan.style.color = "var(--c-bonus)";
+    }
+
+    barCell.appendChild(bar);
+    barCell.appendChild(valSpan);
+
+    const evCell = document.createElement("div");
+    evCell.className = "ps-events-cell";
+    if (m.events && m.events.length) {
+      m.events.forEach(ev => {
+        const span = document.createElement("div");
+        span.className = "ps-event";
+        span.textContent = ev;
+        evCell.appendChild(span);
+      });
+    }
+
+    grid.appendChild(labelDiv);
+    grid.appendChild(barCell);
+    grid.appendChild(evCell);
+
+    if (idx < entries.length - 1) {
+      const divider = document.createElement("div");
+      divider.className = "ps-divider";
+      grid.appendChild(divider);
+    }
+  });
+
+  container.appendChild(grid);
+}
+
+// ─── DUAL BARS (bruto arriba, desglose abajo) ───────────────────
+function renderDualBars(container, entries, maxGross) {
+  const grid = document.createElement("div");
+  grid.className = "ps-grid";
+
+  const h1 = document.createElement("div");
+  h1.className = "ps-col-header";
+  h1.textContent = "Período";
+  const h2 = document.createElement("div");
+  h2.className = "ps-col-header";
+  h2.textContent = "Bruto (ref) + Desglose";
+  const h3 = document.createElement("div");
+  h3.className = "ps-col-header";
+  h3.style.paddingLeft = "8px";
+  h3.textContent = "Eventos";
+  grid.appendChild(h1);
+  grid.appendChild(h2);
+  grid.appendChild(h3);
+
+  entries.forEach((m, idx) => {
+    const netTotal = (m.net || 0) + (m.bonus_net || 0);
+    const cashGross = (m.gross || 0) + (m.bonus_gross || 0) - (m.espp_dd || 0);
+    const barWidthPct = (cashGross / maxGross * 100).toFixed(2);
+
+    const labelDiv = document.createElement("div");
+    labelDiv.className = "ps-label";
+    labelDiv.textContent = m.label;
+
+    const barCell = document.createElement("div");
+    barCell.className = "ps-bar-cell";
+
+    const dualRow = document.createElement("div");
+    dualRow.className = "ps-dual-row";
+
+    // Barra superior: bruto (referencia)
+    const grossBar = document.createElement("div");
+    grossBar.className = "ps-bar-gross";
+    grossBar.style.width = barWidthPct + "%";
+    grossBar.title = `Bruto: ${fmt2(cashGross)}`;
+
+    // Barra inferior: desglose
+    const breakdown = document.createElement("div");
+    breakdown.className = "ps-bar-breakdown";
+    breakdown.style.width = barWidthPct + "%";
+
+    SERIES.forEach(s => {
+      if (!seriesState[s.key]) return;
+      const v = m[s.field] || 0;
+      if (v <= 0) return;
+      // Porcentaje relativo al cashGross de esta entrada (no a maxGross)
+      const segPct = (v / cashGross * 100).toFixed(3);
+      const seg = document.createElement("div");
+      seg.className = "ps-seg";
+      seg.style.cssText = `width:${segPct}%;background:${s.color};`;
+      seg.dataset.tip = `${s.label}: ${fmt2(v)}`;
+      breakdown.appendChild(seg);
+    });
+
+    dualRow.appendChild(grossBar);
+    dualRow.appendChild(breakdown);
+
+    const valSpan = document.createElement("span");
+    valSpan.className = "ps-val";
+    valSpan.textContent = `${fmt(netTotal)} neto`;
+
+    barCell.appendChild(dualRow);
+    barCell.appendChild(valSpan);
+
+    const evCell = document.createElement("div");
+    evCell.className = "ps-events-cell";
+    if (m.events && m.events.length) {
+      m.events.forEach(ev => {
+        const span = document.createElement("div");
+        span.className = "ps-event";
+        span.textContent = ev;
+        evCell.appendChild(span);
+      });
+    }
+
+    grid.appendChild(labelDiv);
+    grid.appendChild(barCell);
+    grid.appendChild(evCell);
+
+    if (idx < entries.length - 1) {
+      const divider = document.createElement("div");
+      divider.className = "ps-divider";
+      grid.appendChild(divider);
+    }
+  });
+
+  container.appendChild(grid);
+}
+
+// ─── WATERFALL (cascada) ────────────────────────────────────────
+function renderWaterfall(container, entries, maxGross) {
+  const grid = document.createElement("div");
+  grid.className = "ps-grid";
+
+  const h1 = document.createElement("div");
+  h1.className = "ps-col-header";
+  h1.textContent = "Período";
+  const h2 = document.createElement("div");
+  h2.className = "ps-col-header";
+  h2.textContent = "Cascada: Bruto → Neto";
+  const h3 = document.createElement("div");
+  h3.className = "ps-col-header";
+  h3.style.paddingLeft = "8px";
+  h3.textContent = "Eventos";
+  grid.appendChild(h1);
+  grid.appendChild(h2);
+  grid.appendChild(h3);
+
+  entries.forEach((m, idx) => {
+    const cashGross = (m.gross || 0) + (m.bonus_gross || 0) - (m.espp_dd || 0);
+    const taxes = (m.taxes || 0) + (m.bonus_taxes || 0);
+    const preTax = m.preTax || 0;
+    const postTax = m.postTax || 0;
+    const netTotal = (m.net || 0) + (m.bonus_net || 0);
+
+    const labelDiv = document.createElement("div");
+    labelDiv.className = "ps-label";
+    labelDiv.textContent = m.label;
+
+    const barCell = document.createElement("div");
+    barCell.className = "ps-bar-cell";
+
+    const wf = document.createElement("div");
+    wf.className = "ps-waterfall";
+
+    // Datos del waterfall
+    const steps = [
+      { label: "Bruto", value: cashGross, type: "positive" },
+      { label: "− Impuestos", value: taxes, type: "negative" },
+      { label: "− Pre-Tax", value: preTax, type: "pretax" },
+      { label: "− Post-Tax", value: postTax, type: "posttax" },
+      { label: "= Neto", value: netTotal, type: "result" }
+    ];
+
+    let running = cashGross;
+    steps.forEach((step, i) => {
+      const row = document.createElement("div");
+      row.className = "ps-wf-row";
+
+      const lbl = document.createElement("div");
+      lbl.className = "ps-wf-label";
+      lbl.textContent = step.label;
+
+      const barContainer = document.createElement("div");
+      barContainer.className = "ps-wf-bar-container";
+
+      const bar = document.createElement("div");
+      bar.className = "ps-wf-bar " + step.type;
+      const widthPct = (step.value / maxGross * 100).toFixed(2);
+      bar.style.width = widthPct + "%";
+
+      if (step.type === "negative" || step.type === "pretax" || step.type === "posttax") {
+        // Posicionar desde donde termina el neto
+        const netPct = (netTotal / maxGross * 100);
+        let offset = netPct;
+        if (step.type === "negative") {
+          offset = netPct + ((preTax + postTax) / maxGross * 100);
+        } else if (step.type === "pretax") {
+          offset = netPct + (postTax / maxGross * 100);
+        }
+        bar.style.left = offset.toFixed(2) + "%";
+      }
+
+      bar.title = `${step.label}: ${fmt2(step.value)}`;
+      barContainer.appendChild(bar);
+
+      row.appendChild(lbl);
+      row.appendChild(barContainer);
+      wf.appendChild(row);
+    });
+
+    barCell.appendChild(wf);
+
+    const evCell = document.createElement("div");
+    evCell.className = "ps-events-cell";
+    if (m.events && m.events.length) {
+      m.events.forEach(ev => {
+        const span = document.createElement("div");
+        span.className = "ps-event";
+        span.textContent = ev;
+        evCell.appendChild(span);
+      });
+    }
+
+    grid.appendChild(labelDiv);
+    grid.appendChild(barCell);
+    grid.appendChild(evCell);
+
+    if (idx < entries.length - 1) {
+      const divider = document.createElement("div");
+      divider.className = "ps-divider";
+      grid.appendChild(divider);
+    }
+  });
+
+  container.appendChild(grid);
+}
+
+// ─── DIVERGENT (neto izq, deducciones der) ──────────────────────
+function renderDivergent(container, entries, maxGross) {
+  const grid = document.createElement("div");
+  grid.className = "ps-grid";
+
+  const h1 = document.createElement("div");
+  h1.className = "ps-col-header";
+  h1.textContent = "Período";
+  const h2 = document.createElement("div");
+  h2.className = "ps-col-header";
+  h2.textContent = "← Neto | Deducciones →";
+  const h3 = document.createElement("div");
+  h3.className = "ps-col-header";
+  h3.style.paddingLeft = "8px";
+  h3.textContent = "Eventos";
+  grid.appendChild(h1);
+  grid.appendChild(h2);
+  grid.appendChild(h3);
+
+  // Calcular max para escala divergente (mitad del gross)
+  const maxHalf = maxGross / 2;
+
+  entries.forEach((m, idx) => {
+    const netTotal = (m.net || 0) + (m.bonus_net || 0);
+    const taxes = (m.taxes || 0) + (m.bonus_taxes || 0);
+    const preTax = m.preTax || 0;
+    const postTax = m.postTax || 0;
+
+    const labelDiv = document.createElement("div");
+    labelDiv.className = "ps-label";
+    labelDiv.textContent = m.label;
+
+    const barCell = document.createElement("div");
+    barCell.className = "ps-bar-cell";
+
+    const divergent = document.createElement("div");
+    divergent.className = "ps-divergent";
+
+    // Lado izquierdo: neto (crece hacia la izquierda)
+    const leftSide = document.createElement("div");
+    leftSide.className = "ps-div-left";
+    const netBar = document.createElement("div");
+    netBar.className = "ps-div-seg";
+    netBar.style.width = (netTotal / maxHalf * 50).toFixed(2) + "%";
+    netBar.style.background = "var(--c-net)";
+    netBar.style.borderRadius = "2px 0 0 2px";
+    netBar.title = `Neto: ${fmt2(netTotal)}`;
+    leftSide.appendChild(netBar);
+
+    // Eje central
+    const center = document.createElement("div");
+    center.className = "ps-div-center";
+
+    // Lado derecho: deducciones (tax, pretax, posttax)
+    const rightSide = document.createElement("div");
+    rightSide.className = "ps-div-right";
+
+    // Impuestos
+    if (taxes > 0) {
+      const taxSeg = document.createElement("div");
+      taxSeg.className = "ps-div-seg";
+      taxSeg.style.width = (taxes / maxHalf * 50).toFixed(2) + "%";
+      taxSeg.style.background = "var(--c-tax)";
+      taxSeg.title = `Impuestos: ${fmt2(taxes)}`;
+      rightSide.appendChild(taxSeg);
+    }
+
+    // Pre-tax
+    if (preTax > 0) {
+      const preSeg = document.createElement("div");
+      preSeg.className = "ps-div-seg";
+      preSeg.style.width = (preTax / maxHalf * 50).toFixed(2) + "%";
+      preSeg.style.background = "var(--c-401k)";
+      preSeg.title = `Pre-Tax: ${fmt2(preTax)}`;
+      rightSide.appendChild(preSeg);
+    }
+
+    // Post-tax
+    if (postTax > 0) {
+      const postSeg = document.createElement("div");
+      postSeg.className = "ps-div-seg";
+      postSeg.style.width = (postTax / maxHalf * 50).toFixed(2) + "%";
+      postSeg.style.background = "var(--c-espp)";
+      postSeg.title = `Post-Tax: ${fmt2(postTax)}`;
+      rightSide.appendChild(postSeg);
+    }
+
+    // Borde derecho redondeado para el último segmento
+    if (rightSide.lastChild) {
+      rightSide.lastChild.style.borderRadius = "0 2px 2px 0";
+    }
+
+    divergent.appendChild(leftSide);
+    divergent.appendChild(center);
+    divergent.appendChild(rightSide);
+
+    const valSpan = document.createElement("span");
+    valSpan.className = "ps-val";
+    valSpan.textContent = `${fmt(netTotal)} neto`;
+
+    barCell.appendChild(divergent);
+    barCell.appendChild(valSpan);
+
+    const evCell = document.createElement("div");
+    evCell.className = "ps-events-cell";
+    if (m.events && m.events.length) {
+      m.events.forEach(ev => {
+        const span = document.createElement("div");
+        span.className = "ps-event";
+        span.textContent = ev;
+        evCell.appendChild(span);
+      });
+    }
+
+    grid.appendChild(labelDiv);
+    grid.appendChild(barCell);
+    grid.appendChild(evCell);
+
+    if (idx < entries.length - 1) {
+      const divider = document.createElement("div");
+      divider.className = "ps-divider";
+      grid.appendChild(divider);
+    }
+  });
+
+  container.appendChild(grid);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  TAX RATE LINE CHART
+// ═══════════════════════════════════════════════════════════════
+function buildTaxRateChart() {
+  const months = getMonths(currentYear);
+  const labels = months.map(m => m.label);
+  const taxRates = months.map(m => m.taxRate);
+  const netRates = months.map(m => {
+    const totalGross = m.gross + (m.bonus_gross || 0);
+    const totalNet = m.net + (m.bonus_net || 0);
+    return totalGross > 0 ? +(totalNet / totalGross * 100).toFixed(1) : 0;
+  });
+
+  const ctx = document.getElementById("taxRateChart").getContext("2d");
+  if (taxRateChart) taxRateChart.destroy();
+  taxRateChart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [
+        { label: "% Impuestos s/bruto", data: taxRates,
+          borderColor: "#fa4d56", backgroundColor: "rgba(250,77,86,0.1)",
+          tension: 0.3, fill: true, pointRadius: 4, pointHoverRadius: 6, borderWidth: 2 },
+        { label: "% Neto s/bruto total", data: netRates,
+          borderColor: "#42be65", backgroundColor: "transparent",
+          tension: 0.3, fill: false, pointRadius: 4, pointHoverRadius: 6,
+          borderWidth: 2, borderDash: [4,4] }
+      ]
+    },
+    options: {
+      animation: false,
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true, labels: { color:"#c6c6c6", font:{size:11}, boxWidth:12 } },
+        tooltip: {
+          backgroundColor:"#1e1e1e", borderColor:"#525252", borderWidth:1,
+          titleColor:"#f4f4f4", bodyColor:"#c6c6c6",
+          callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.raw.toFixed(1)}%` }
+        }
+      },
+      scales: {
+        x: { grid:{color:"#2a2a2a"}, ticks:{color:"#8d8d8d",font:{size:10}} },
+        y: { min:20, max:60, grid:{color:"#2a2a2a"},
+             ticks:{color:"#8d8d8d",font:{size:11},callback:v=>v+"%"} }
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  TAX PIE CHART
+// ═══════════════════════════════════════════════════════════════
+function buildTaxPieChart() {
+  let tb;
+  if (currentYear === "all") {
+    tb = { federal:0, nyState:0, nycTax:0, ss:0, medicare:0 };
+    AVAILABLE_YEARS.forEach(y => {
+      const t = DATA[y]?.taxBreakdown;
+      if (!t) return;
+      tb.federal += t.federal || 0; tb.nyState += t.nyState || 0;
+      tb.nycTax += t.nycTax || 0; tb.ss += t.ss || 0; tb.medicare += t.medicare || 0;
+    });
+  } else {
+    tb = DATA[currentYear]?.taxBreakdown || { federal:0, nyState:0, nycTax:0, ss:0, medicare:0 };
+  }
+
+  document.getElementById("taxPieLabel").textContent =
+    currentYear === "all" ? "todos los años" : currentYear + (currentYear==="2026"?" (parcial)":"");
+
+  const ctx = document.getElementById("taxPieChart").getContext("2d");
+  if (taxPieChart) taxPieChart.destroy();
+  taxPieChart = new Chart(ctx, {
+    type: "doughnut",
+    data: {
+      labels: ["Federal", "NY State", "NYC Tax", "Social Security", "Medicare"],
+      datasets: [{
+        data: [tb.federal, tb.nyState, tb.nycTax, tb.ss, tb.medicare],
+        backgroundColor: ["#fa4d56","#ff8389","#ffb3b8","#ff6b70","#da1e28"],
+        borderColor: "#161616", borderWidth: 2, hoverOffset: 6,
+      }]
+    },
+    options: {
+      animation: false,
+      responsive: true, maintainAspectRatio: false,
+      cutout: "60%",
+      plugins: {
+        legend: { position:"right", labels:{color:"#c6c6c6",font:{size:11},boxWidth:12,padding:8} },
+        tooltip: {
+          backgroundColor:"#1e1e1e", borderColor:"#525252", borderWidth:1,
+          titleColor:"#f4f4f4", bodyColor:"#c6c6c6",
+          callbacks: { label: ctx => {
+            const total = ctx.dataset.data.reduce((a,b)=>a+b,0);
+            return ` ${fmt2(ctx.raw)} (${(ctx.raw/total*100).toFixed(1)}%)`;
+          }}
+        }
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  COMPARISON TABLE
+// ═══════════════════════════════════════════════════════════════
+function buildCompTable() {
+  const body = document.getElementById("compBody");
+  body.innerHTML = "";
+  let prevNet = null;
+  AVAILABLE_YEARS.forEach(y => {
+    const t = DATA[y]?.totals;
+    if (!t) return;
+    const tr = document.createElement("tr");
+    const netChange = prevNet ? ((t.net - prevNet) / prevNet * 100).toFixed(1) : null;
+    const changeHtml = netChange
+      ? `<span class="${netChange >= 0 ? 'positive' : 'negative'}">${netChange >= 0 ? "↑" : "↓"}${Math.abs(netChange)}%</span>`
+      : "";
+    tr.innerHTML = `
+      <td>${y}${t.note ? ` <span class="partial-note">(parcial)</span>` : ""}</td>
+      <td class="num">${fmt(t.gross)}</td>
+      <td class="num">${fmt(t.net)} ${changeHtml}</td>
+      <td class="num">${pct(t.taxRate)}</td>
+      <td class="num">${fmt(t.k401)}</td>
+      <td class="num">${fmt(t.hsa)}</td>
+    `;
+    if (currentYear === String(y)) tr.style.background = "#333";
+    body.appendChild(tr);
+    prevNet = t.net;
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  SAVINGS STATS
+// ═══════════════════════════════════════════════════════════════
+function buildSavings() {
+  const t = getYearData(currentYear);
+  const label = currentYear === "all" ? "ago'24–feb'26" : currentYear;
+  document.getElementById("savingsLabel").textContent = label;
+
+  const items = [
+    { name:"401k (tú)", val:t.k401, color:"#4589ff", note:"pre-tax" },
+    { name:"HSA (tú)", val:t.hsa, color:"#08bdba", note:"pre-tax" },
+    { name:"Health Care", val:t.hc||0, color:"#be95ff", note:"pre-tax" },
+    { name:"Total pre-tax", val:t.preTax||(t.k401+t.hsa+(t.hc||0)), color:"#ffffff", note:"reduce tu base imponible" },
+  ];
+  if (currentYear === "2025" || currentYear === "all") {
+    items.push({ name:"ESPP (post-tax)", val:4620, color:"#f1c21b", note:"invertido en acciones IBM" });
+  }
+
+  const stats = document.getElementById("savingsStats");
+  stats.innerHTML = items.map(i => `
+    <div class="stat-row">
+      <div class="stat-name">
+        <div class="stat-dot" style="background:${i.color}"></div>
+        ${i.name} <span style="font-size:0.7rem;color:var(--text3);">(${i.note})</span>
+      </div>
+      <div class="stat-val" style="color:${i.color}">${fmt(i.val)}</div>
+    </div>
+  `).join("");
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  CHART SUBTITLE
+// ═══════════════════════════════════════════════════════════════
+function updateSubtitle() {
+  const viewLabel = viewMode === 'monthly' ? 'Mensual' : 'Quincenas';
+  const subs = {
+    "2024": `ago–dic 2024 · Workday · ${viewLabel}`,
+    "2025": `ene–dic 2025 · SuccessFactors · ${viewLabel}`,
+    "2026": `ene–feb 2026 · SuccessFactors · ${viewLabel} (año en curso)`,
+    "all":  `ago 2024 – feb 2026 · Todos los años · ${viewLabel}`
+  };
+  document.getElementById("chartSubtitle").textContent = "— " + (subs[currentYear] || "");
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  MAIN UPDATE (sin animaciones)
+// ═══════════════════════════════════════════════════════════════
+function updateAll() {
+  updateKPIs();
+  buildPayslipChart();
+  buildTaxRateChart();
+  buildTaxPieChart();
+  buildCompTable();
+  buildSavings();
+  updateSubtitle();
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  EVENT LISTENERS
+// ═══════════════════════════════════════════════════════════════
+document.querySelectorAll(".year-tabs .year-tab").forEach(btn => {
+  btn.addEventListener("click", () => {
+    currentYear = btn.dataset.year;
+    document.querySelectorAll(".year-tabs .year-tab").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    savePrefs();
+    updateAll();
+  });
+});
+
+document.querySelectorAll(".view-mode-tab").forEach(btn => {
+  btn.addEventListener("click", () => {
+    chartMode = btn.dataset.mode;
+    document.querySelectorAll(".view-mode-tab").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    savePrefs();
+    buildPayslipChart();
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  INIT (async - espera carga de datos)
+// ═══════════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    await loadData();
+
+    // Aplicar estado guardado a la UI
+    document.querySelectorAll(".year-tabs .year-tab").forEach(btn => {
+      btn.classList.toggle("active", btn.dataset.year === currentYear);
+    });
+    document.querySelectorAll(".view-mode-tab").forEach(btn => {
+      btn.classList.toggle("active", btn.dataset.mode === chartMode);
+    });
+    document.getElementById('btnMonthly').classList.toggle('active', viewMode === 'monthly');
+    document.getElementById('btnPayslip').classList.toggle('active', viewMode === 'payslip');
+
+    buildCheckboxes();
+    updateAll();
+  } catch (e) {
+    console.error('Error inicializando dashboard:', e);
+  }
+});
+</script>
+</body>
+</html>

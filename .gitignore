@@ -1,0 +1,2 @@
+# Ignore data folder (contains sensitive payslip data)
+data/
