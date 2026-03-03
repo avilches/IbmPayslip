@@ -15,16 +15,24 @@ Dashboard interactivo para visualizar y analizar nóminas de IBM.
 
 ## Cómo empezar
 
-1. **Crear la carpeta `data/`** con los ficheros JSON de cada año (ver estructura en CLAUDE.md)
-
-2. **Abrir `dashboard.html`** en el navegador para visualizar los datos
-
-3. **Para añadir una nómina nueva**, usar Claude Code:
-   ```
+1. **Pasar las nóminas a Claude** para que las procese y genere los JSON:
+   ```bash
    claude
    > [arrastra el PDF de la nómina]
    ```
-   Claude leerá CLAUDE.md y procesará la nómina automáticamente.
+   Claude leerá CLAUDE.md y procesará la nómina automáticamente, creando los ficheros JSON en `data/`.
+
+2. **Arrancar el servidor** con uv:
+   ```bash
+   uv run server.py
+   ```
+
+3. **Abrir el dashboard** en el navegador:
+   ```
+   http://localhost:8000/dashboard.html
+   ```
+
+> **Nota:** El dashboard necesita un servidor local porque los navegadores bloquean las peticiones fetch a ficheros locales por seguridad (CORS). Por eso no se puede abrir `dashboard.html` directamente.
 
 ## Funcionalidades del dashboard
 
