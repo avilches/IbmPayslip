@@ -1,6 +1,8 @@
 # IBM Payslip Dashboard
 
-Dashboard interactivo para visualizar y analizar nóminas de IBM.
+Dashboard interactivo para visualizar y analizar nóminas de IBM - NY
+
+![screenshot.png](screenshot.png)
 
 ## Estructura
 

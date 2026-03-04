@@ -310,6 +310,12 @@ header {
         <button class="view-mode-tab" data-mode="divergent">Divergente</button>
       </div>
     </div>
+    <div class="ctrl-section" style="margin-left:auto;">
+      <div class="ctrl-label">Privacidad</div>
+      <button id="btnHideAmounts" class="view-mode-tab" onclick="toggleHideAmounts()">
+        <span id="hideIcon">👁️</span> Importes
+      </button>
+    </div>
   </div>
 
   <!-- MAIN PAYSLIP CHART -->
@@ -436,7 +442,7 @@ function loadPrefs() {
 function savePrefs() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      currentYear, viewMode, chartMode, seriesState
+      currentYear, viewMode, chartMode, seriesState, hideAmounts
     }));
   } catch (e) { /* ignore */ }
 }
@@ -445,6 +451,7 @@ const savedPrefs = loadPrefs();
 let currentYear = savedPrefs?.currentYear || "2026";
 let viewMode = savedPrefs?.viewMode || 'monthly';
 let chartMode = savedPrefs?.chartMode || 'single';
+let hideAmounts = savedPrefs?.hideAmounts || false;
 let seriesState = {};
 if (savedPrefs?.seriesState) {
   seriesState = savedPrefs.seriesState;
@@ -461,6 +468,11 @@ let taxPieChart = null;
 function fmt(n) { if (!n && n !== 0) return "—"; return "$" + Number(n).toLocaleString("en-US", {minimumFractionDigits:0, maximumFractionDigits:0}); }
 function fmt2(n) { return "$" + Number(n).toLocaleString("en-US", {minimumFractionDigits:2, maximumFractionDigits:2}); }
 function pct(n) { return Number(n).toFixed(1) + "%"; }
+
+// Versiones con ocultación
+function fmtH(n) { return hideAmounts ? "•••" : fmt(n); }
+function fmt2H(n) { return hideAmounts ? "•••" : fmt2(n); }
+function pctH(n) { return hideAmounts ? "••%" : pct(n); }
 
 // ─── Agregación mensual ─────────────────────────────────────────
 function groupByMonth(payslips) {
@@ -534,6 +546,25 @@ function setView(mode) {
   buildTaxRateChart();
 }
 
+function toggleHideAmounts() {
+  hideAmounts = !hideAmounts;
+  updateHideButton();
+  savePrefs();
+  updateAll();
+}
+
+function updateHideButton() {
+  const btn = document.getElementById('btnHideAmounts');
+  const icon = document.getElementById('hideIcon');
+  if (hideAmounts) {
+    btn.classList.add('active');
+    icon.textContent = '🙈';
+  } else {
+    btn.classList.remove('active');
+    icon.textContent = '👁️';
+  }
+}
+
 function getYearData(year) {
   if (year === "all") {
     const totals = { gross:0, taxes:0, preTax:0, postTax:0, net:0, k401:0, hsa:0, hc:0 };
@@ -586,17 +617,17 @@ function buildCheckboxes() {
 function updateKPIs() {
   const t = getYearData(currentYear);
   const label = currentYear === "all" ? "ago'24–feb'26" : currentYear;
-  document.getElementById("kpi-gross").textContent = fmt(t.gross);
+  document.getElementById("kpi-gross").textContent = fmtH(t.gross);
   document.getElementById("kpi-gross-sub").textContent = `Total ${label}`;
-  document.getElementById("kpi-net").textContent = fmt(t.net);
-  document.getElementById("kpi-net-sub").textContent = `${pct(t.gross > 0 ? t.net/t.gross*100 : 0)} del bruto`;
-  document.getElementById("kpi-tax").textContent = fmt(t.taxes);
-  document.getElementById("kpi-tax-sub").textContent = `${pct(t.taxRate)} del bruto`;
-  document.getElementById("kpi-401k").textContent = fmt(t.k401);
-  document.getElementById("kpi-401k-sub").textContent = `${pct(t.gross > 0 ? t.k401/t.gross*100 : 0)} del bruto`;
-  document.getElementById("kpi-hsa").textContent = fmt(t.hsa);
+  document.getElementById("kpi-net").textContent = fmtH(t.net);
+  document.getElementById("kpi-net-sub").textContent = `${pctH(t.gross > 0 ? t.net/t.gross*100 : 0)} del bruto`;
+  document.getElementById("kpi-tax").textContent = fmtH(t.taxes);
+  document.getElementById("kpi-tax-sub").textContent = `${pctH(t.taxRate)} del bruto`;
+  document.getElementById("kpi-401k").textContent = fmtH(t.k401);
+  document.getElementById("kpi-401k-sub").textContent = `${pctH(t.gross > 0 ? t.k401/t.gross*100 : 0)} del bruto`;
+  document.getElementById("kpi-hsa").textContent = fmtH(t.hsa);
   document.getElementById("kpi-hsa-sub").textContent = `tú · IBM no incluido`;
-  document.getElementById("kpi-taxrate").textContent = pct(t.taxRate);
+  document.getElementById("kpi-taxrate").textContent = pctH(t.taxRate);
   document.getElementById("kpi-taxrate-sub").textContent = (currentYear === "2026") ? "% parcial — año en curso" : "% del bruto";
 }
 
@@ -669,15 +700,15 @@ function renderSingleBar(container, entries, maxGross) {
       const seg = document.createElement("div");
       seg.className = "ps-seg";
       seg.style.cssText = `width:${segPct}%;background:${s.color};`;
-      seg.dataset.tip = `${s.label}: ${fmt2(v)}`;
+      seg.dataset.tip = `${s.label}: ${fmt2H(v)}`;
       bar.appendChild(seg);
     });
 
     const valSpan = document.createElement("span");
     valSpan.className = "ps-val";
-    valSpan.textContent = `${fmt(netTotal)} neto`;
+    valSpan.textContent = `${fmtH(netTotal)} neto`;
     if (m.bonus_gross > 0) {
-      valSpan.textContent += ` · ${fmt(m.bonus_gross)} bonus`;
+      valSpan.textContent += ` · ${fmtH(m.bonus_gross)} bonus`;
       valSpan.style.color = "var(--c-bonus)";
     }
 
@@ -747,7 +778,7 @@ function renderDualBars(container, entries, maxGross) {
     const grossBar = document.createElement("div");
     grossBar.className = "ps-bar-gross";
     grossBar.style.width = barWidthPct + "%";
-    grossBar.title = `Bruto: ${fmt2(cashGross)}`;
+    grossBar.title = `Bruto: ${fmt2H(cashGross)}`;
 
     // Barra inferior: desglose
     const breakdown = document.createElement("div");
@@ -763,7 +794,7 @@ function renderDualBars(container, entries, maxGross) {
       const seg = document.createElement("div");
       seg.className = "ps-seg";
       seg.style.cssText = `width:${segPct}%;background:${s.color};`;
-      seg.dataset.tip = `${s.label}: ${fmt2(v)}`;
+      seg.dataset.tip = `${s.label}: ${fmt2H(v)}`;
       breakdown.appendChild(seg);
     });
 
@@ -772,7 +803,7 @@ function renderDualBars(container, entries, maxGross) {
 
     const valSpan = document.createElement("span");
     valSpan.className = "ps-val";
-    valSpan.textContent = `${fmt(netTotal)} neto`;
+    valSpan.textContent = `${fmtH(netTotal)} neto`;
 
     barCell.appendChild(dualRow);
     barCell.appendChild(valSpan);
@@ -876,7 +907,7 @@ function renderWaterfall(container, entries, maxGross) {
         bar.style.left = offset.toFixed(2) + "%";
       }
 
-      bar.title = `${step.label}: ${fmt2(step.value)}`;
+      bar.title = `${step.label}: ${fmt2H(step.value)}`;
       barContainer.appendChild(bar);
 
       row.appendChild(lbl);
@@ -957,7 +988,7 @@ function renderDivergent(container, entries, maxGross) {
     netBar.style.width = (netTotal / maxHalf * 50).toFixed(2) + "%";
     netBar.style.background = "var(--c-net)";
     netBar.style.borderRadius = "2px 0 0 2px";
-    netBar.title = `Neto: ${fmt2(netTotal)}`;
+    netBar.title = `Neto: ${fmt2H(netTotal)}`;
     leftSide.appendChild(netBar);
 
     // Eje central
@@ -974,7 +1005,7 @@ function renderDivergent(container, entries, maxGross) {
       taxSeg.className = "ps-div-seg";
       taxSeg.style.width = (taxes / maxHalf * 50).toFixed(2) + "%";
       taxSeg.style.background = "var(--c-tax)";
-      taxSeg.title = `Impuestos: ${fmt2(taxes)}`;
+      taxSeg.title = `Impuestos: ${fmt2H(taxes)}`;
       rightSide.appendChild(taxSeg);
     }
 
@@ -984,7 +1015,7 @@ function renderDivergent(container, entries, maxGross) {
       preSeg.className = "ps-div-seg";
       preSeg.style.width = (preTax / maxHalf * 50).toFixed(2) + "%";
       preSeg.style.background = "var(--c-401k)";
-      preSeg.title = `Pre-Tax: ${fmt2(preTax)}`;
+      preSeg.title = `Pre-Tax: ${fmt2H(preTax)}`;
       rightSide.appendChild(preSeg);
     }
 
@@ -994,7 +1025,7 @@ function renderDivergent(container, entries, maxGross) {
       postSeg.className = "ps-div-seg";
       postSeg.style.width = (postTax / maxHalf * 50).toFixed(2) + "%";
       postSeg.style.background = "var(--c-espp)";
-      postSeg.title = `Post-Tax: ${fmt2(postTax)}`;
+      postSeg.title = `Post-Tax: ${fmt2H(postTax)}`;
       rightSide.appendChild(postSeg);
     }
 
@@ -1009,7 +1040,7 @@ function renderDivergent(container, entries, maxGross) {
 
     const valSpan = document.createElement("span");
     valSpan.className = "ps-val";
-    valSpan.textContent = `${fmt(netTotal)} neto`;
+    valSpan.textContent = `${fmtH(netTotal)} neto`;
 
     barCell.appendChild(divergent);
     barCell.appendChild(valSpan);
@@ -1076,7 +1107,7 @@ function buildTaxRateChart() {
         tooltip: {
           backgroundColor:"#1e1e1e", borderColor:"#525252", borderWidth:1,
           titleColor:"#f4f4f4", bodyColor:"#c6c6c6",
-          callbacks: { label: ctx => ` ${ctx.dataset.label}: ${ctx.raw.toFixed(1)}%` }
+          callbacks: { label: ctx => ` ${ctx.dataset.label}: ${hideAmounts ? "••%" : ctx.raw.toFixed(1)+"%"}` }
         }
       },
       scales: {
@@ -1131,7 +1162,7 @@ function buildTaxPieChart() {
           titleColor:"#f4f4f4", bodyColor:"#c6c6c6",
           callbacks: { label: ctx => {
             const total = ctx.dataset.data.reduce((a,b)=>a+b,0);
-            return ` ${fmt2(ctx.raw)} (${(ctx.raw/total*100).toFixed(1)}%)`;
+            return ` ${fmt2H(ctx.raw)} (${pctH(ctx.raw/total*100)})`;
           }}
         }
       }
@@ -1156,11 +1187,11 @@ function buildCompTable() {
       : "";
     tr.innerHTML = `
       <td>${y}${t.note ? ` <span class="partial-note">(parcial)</span>` : ""}</td>
-      <td class="num">${fmt(t.gross)}</td>
-      <td class="num">${fmt(t.net)} ${changeHtml}</td>
-      <td class="num">${pct(t.taxRate)}</td>
-      <td class="num">${fmt(t.k401)}</td>
-      <td class="num">${fmt(t.hsa)}</td>
+      <td class="num">${fmtH(t.gross)}</td>
+      <td class="num">${fmtH(t.net)} ${hideAmounts ? "" : changeHtml}</td>
+      <td class="num">${pctH(t.taxRate)}</td>
+      <td class="num">${fmtH(t.k401)}</td>
+      <td class="num">${fmtH(t.hsa)}</td>
     `;
     if (currentYear === String(y)) tr.style.background = "#333";
     body.appendChild(tr);
@@ -1193,7 +1224,7 @@ function buildSavings() {
         <div class="stat-dot" style="background:${i.color}"></div>
         ${i.name} <span style="font-size:0.7rem;color:var(--text3);">(${i.note})</span>
       </div>
-      <div class="stat-val" style="color:${i.color}">${fmt(i.val)}</div>
+      <div class="stat-val" style="color:${i.color}">${fmtH(i.val)}</div>
     </div>
   `).join("");
 }
@@ -1264,6 +1295,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
     document.getElementById('btnMonthly').classList.toggle('active', viewMode === 'monthly');
     document.getElementById('btnPayslip').classList.toggle('active', viewMode === 'payslip');
+    updateHideButton();
 
     buildCheckboxes();
     updateAll();
