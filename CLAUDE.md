@@ -1,5 +1,5 @@
 # Instrucciones para Procesar Nóminas IBM
-Cuando el usuario añada una nómina nueva, lee este fichero primero y sigue los pasos al pie de la letra.
+Cuando el usuario añada una nómina nueva, usa el comando `/add-payslip` (skill en `.claude/commands/add-payslip.md`). Este fichero contiene solo la referencia estructural (JSON, dashboard, glosario).
 
 ---
 
@@ -53,88 +53,7 @@ uv run server.py 3000
 
 ---
 
-## Flujo cuando llega una nómina nueva
-
-```
-PDF → Paso 1: Extraer datos
-    → Paso 2: Calcular métricas
-    → Paso 3: Detectar eventos
-    → Paso 4: Actualizar data/AAAA.json   ← primero
-    → Paso 5: Actualizar data/AAAA.md     ← segundo (derivado)
-    → Paso 6: Actualizar dashboard.html   ← tercero (derivado)
-    → Paso 7: Crear data/AAAA.json nuevo si es enero de año nuevo
-```
-
----
-
-## Paso 1 — Extraer datos del PDF
-
-| Campo | Dónde está en el PDF |
-|-------|---------------------|
-| **Pay Period** | Cabecera (`MM/DD/YYYY - MM/DD/YYYY`) |
-| **Net Payment** | Cabecera, arriba a la derecha |
-| **Gross Pay** | Tabla resumen superior, columna "Gross Pay" — usar Current, no YTD |
-| **Employee Taxes** | Tabla resumen, columna "Employee Taxes" — Current |
-| **Pre Tax Deductions** | Tabla resumen, columna "Pre Tax Deductions" — Current |
-| **Post Tax Deductions** | Tabla resumen, columna "Post Tax Deductions" — Current |
-| **YTD Gross Pay** | Tabla resumen, columna "Gross Pay" — YTD (para totales anuales) |
-| **YTD Employee Taxes** | Tabla resumen, columna "Employee Taxes" — YTD |
-| **YTD Pre Tax** | Tabla resumen, columna "Pre Tax Deductions" — YTD |
-| **YTD Post Tax** | Tabla resumen, columna "Post Tax Deductions" — YTD |
-| **Earnings detalle** | Sección "Earnings" — anotar todo lo que no sea Regular Salary |
-| **Taxes detalle** | Sección "Employee Taxes" — Federal, NY, NYC, SS, Medicare (Current y YTD) |
-| **Pre-Tax detalle** | Sección "Pre Tax Deductions" — 401k, HSA, Health Care, LTD, Transit (Current) |
-| **Post-Tax detalle** | Sección "Post Tax Deductions" — Life, Legal, ESPP (Current) |
-| **Other Information** | Sección final — Employer HSA, Taxable Expenses, Awards, Merch Points |
-
-> ⚠️ Verificar siempre: Gross − Employee Taxes − Pre Tax Ded − Post Tax Ded = Net Payment
-
----
-
-## Paso 2 — Calcular métricas
-
-```
-taxRate     = Employee Taxes (Current) / Gross Pay (Current) × 100
-k401        = valor "401k PreTax" en Pre Tax Deductions (Current)
-hsa         = valor "Employee HSA" en Pre Tax Deductions (Current)
-hc          = valor "Health Care Premium" en Pre Tax Deductions (Current)
-ltd         = valor "LTD" en Pre Tax Deductions (Current)
-transit     = valor "Transit Benefit" en Pre Tax Deductions (Current), o 0
-espp        = valor "ESPP" en Post Tax Deductions (Current), o 0
-other_post  = total Post Tax Deductions (Current) − espp
-espp_dd     = "ESPP Disqualifying Disposition" en Earnings (si aparece), o 0
-              → ingreso fantasma: aumenta gross y taxes sin generar efectivo
-```
-
-Un `taxRate` normal es ~30%. Si es >35%, buscar causa: Taxable Expenses, bonus, o Business Expense en Other Information.
-
----
-
-## Paso 3 — Detectar eventos especiales
-
-| Señal en el PDF | Evento a registrar en `events[]` |
-|-----------------|----------------------------------|
-| Earnings tiene algo además de Regular Salary | 🎁 Bonus / 🏆 Award Tax Assistance $XX |
-| "GI Taxable Business Expense" en Other Information | ⚠️ GI Business Expense $X,XXX → +impuestos |
-| "Taxable Expenses" en Other Information | ⚠️ Taxable Expenses $X,XXX → +impuestos |
-| ESPP aparece en Post-Tax (antes era 0) | 📈 Inicio ESPP $X/q |
-| ESPP desaparece de Post-Tax | 🏁 Fin ESPP |
-| 401k = $0 cuando antes tenía valor | ⏸️ Suspensión 401k (y HSA si aplica) |
-| 401k vuelve a tener valor tras $0 | ▶️ Reactivación 401k ($XXX) |
-| Social Security = $0 en la quincena | 🎉 Tope SS alcanzado → +$XXX/q |
-| "Employer HSA Contribution" en Other Information | 💰 Employer HSA $XXX IBM (regalo enero, solo info) |
-| "Award Tax Assistance" en Earnings | 🏆 Award Tax Asst $XX |
-| "Merchandise Points Award" en Other Information | 🎖️ Merch Points $XX (solo info) |
-| "ESPP Disqualifying Disposition" en Earnings | 📈 ESPP Disqualifying Disposition $XX incluido en bruto |
-| Impuesto negativo / devolución (nómina de ajuste) | 🔄 Devolución ajuste fiscal $XX |
-| Gross sube respecto al período anterior (no por bonus) | 📈 Subida salarial |
-| Transit Benefit aparece o cambia de valor | 🚇 Transit $XX |
-
----
-
-## Paso 4 — Actualizar data/AAAA.json (fuente de verdad)
-
-### 4a. Estructura del JSON
+## Estructura del JSON
 
 Cada archivo contiene una lista `payslips[]` donde **cada entrada representa exactamente un PDF**. No se agregan quincenas en el JSON — la agregación mensual la hace el dashboard.
 
@@ -152,7 +71,23 @@ Cada archivo contiene una lista `payslips[]` donde **cada entrada representa exa
 }
 ```
 
-### 4b. Estructura de cada entrada en `payslips[]`
+Cada archivo contiene una lista `payslips[]` donde **cada entrada representa exactamente un PDF**. No se agregan quincenas en el JSON — la agregación mensual la hace el dashboard.
+
+```json
+{
+  "year": 2026,
+  "system": "SuccessFactors",
+  "currency": "USD",
+  "notes": "...",
+  "payslips": [ ... ],
+  "annualTotals": { ... },
+  "taxBreakdown": { ... },
+  "preTaxBreakdown": { ... },
+  "postTaxBreakdown": { ... }
+}
+```
+
+### Estructura de cada entrada en `payslips[]`
 
 ```json
 {
@@ -207,31 +142,12 @@ net + k401 + hsa + hc + ltd + transit + espp + other_post + taxes
 ```
 Verificar siempre antes de guardar.
 
-**Nómina de bonus puro** (ej: Payslip-2025-04-08-bonus.pdf):
-- `gross: 0`, `bonus_gross: XXXX`
-- `bonus_taxes`, `bonus_net` con los valores del PDF
-- Si el bonus tiene 401k asociado, ponerlo en `k401` (no se zeroed)
-- `bonus_label`: "Bonus Rendimiento" o similar
+**Casos especiales:**
+- **Bonus puro** (`id: YYYY-MM-DD-bonus`): `gross: 0`, `bonus_gross/taxes/net` con los valores del PDF. `bonus_label`: "Bonus Rendimiento" o similar.
+- **ESPP Disqualifying Disposition**: ingreso fantasma → poner en `espp_dd`. La fórmula de verificación lo resta del expected.
+- **Nómina de ajuste/devolución** (`id: YYYY-MM-DD-refund`): `gross` puede ser negativo. Añadir evento 🔄.
 
-**ESPP Disqualifying Disposition** (ej: dic 2025):
-- El valor aparece en Earnings como ingreso fantasma
-- Se pone en `espp_dd`; no hay flujo de caja real
-- La fórmula de verificación resta `espp_dd` del expected
-
-**Nómina de ajuste / devolución** (ej: Payslip-2025-12-31-refund.pdf):
-- `gross` puede ser negativo o muy pequeño
-- Registrar como entrada separada con id `YYYY-MM-DD-refund`
-- Añadir evento 🔄 Devolución ajuste fiscal $XX
-
-### 4c. Añadir una quincena nueva
-
-Para la primera quincena del mes: añadir la nueva entrada al final de `payslips[]`. No hay que comprobar si existe el mes — cada entrada es independiente.
-
-Para la segunda quincena del mismo mes: igualmente, añadir nueva entrada. El dashboard agrupa automáticamente por mes.
-
-### 4d. Actualizar secciones anuales del JSON con valores YTD del PDF
-
-Estas secciones usan la columna **YTD** del último PDF del año (acumulado del año en curso):
+### Secciones anuales del JSON (valores YTD del último PDF)
 
 ```json
 "annualTotals": {
@@ -265,46 +181,6 @@ Estas secciones usan la columna **YTD** del último PDF del año (acumulado del 
   "espp":          /* YTD ESPP */
 }
 ```
-
----
-
-## Paso 5 — Actualizar data/AAAA.md (derivado legible)
-
-Abrir el fichero `data/AAAA.md` y actualizar estas secciones:
-
-1. **Tabla por Quincena** — añadir fila con los datos Current de la quincena nueva.
-2. **Tabla Mensual Resumida** — actualizar o añadir fila del mes. Si ya existe la primera quincena, completar sumando ambas.
-3. **ACUMULADO / TOTAL** — actualizar con los valores YTD.
-4. **Desglose de Impuestos acumulado** — usar YTD de los taxes del PDF.
-5. **Deducciones Pre-Tax acumuladas** — usar YTD del PDF.
-6. **Eventos Especiales** — añadir sección nueva si hay evento relevante.
-
-Actualizar la fecha en la cabecera: `*Año en curso — última actualización: DD de MES de AAAA*`
-
----
-
-## Paso 6 — Verificar dashboard.html (derivado visual)
-
-El dashboard carga los datos directamente desde `data/AAAA.json`, por lo que **no necesita modificaciones** cuando se añade una nueva nómina. El dashboard lee automáticamente los ficheros JSON al abrirse.
-
-**Solo hay que actualizar el dashboard si:**
-- Se añade un año nuevo (ej: 2027) → añadir el año a `AVAILABLE_YEARS` en el código
-- Se modifica la estructura de datos
-
-> ⚠️ La escala de las barras usa `cashGross = gross + bonus_gross − espp_dd` para excluir el ingreso fantasma del ESPP DD.
-
----
-
-## Paso 7 — Crear fichero nuevo si es enero de año nuevo
-
-Si la nómina es de enero de un año nuevo (ej: `2027`):
-
-1. Crear `data/2027.json` copiando la estructura de `data/2026.json`, vaciar `payslips[]`, poner `annualTotals` y `taxBreakdown` a cero, año en `"year": 2027`, sistema `"SuccessFactors"`.
-2. Crear `2027.md` con la misma estructura que `2026.md` pero en blanco.
-3. En `dashboard.html`:
-   - Añadir `2027` a la constante `AVAILABLE_YEARS` (ej: `const AVAILABLE_YEARS = [2024, 2025, 2026, 2027];`)
-   - Añadir un nuevo botón `<button class="year-tab" data-year="2027">2027</button>` en la sección `.year-tabs`
-4. Actualizar la tabla "Estructura de Ficheros" de este `CLAUDE.md` cerrando el año anterior y abriendo el nuevo.
 
 ---
 
@@ -379,7 +255,7 @@ Esta sección recoge las decisiones de diseño acordadas con el usuario. Al hace
 - **Columna de eventos a la derecha** de cada barra — persistente (no popup). Se muestra con `grid-template-columns: 90px 1fr 280px`. Sin tooltip flotante para los comentarios.
 - **Tooltip por segmento** (pequeño, CSS `::after`): muestra "Concepto: $X,XXX.XX" al pasar el ratón. Los contenedores de barra usan `overflow: visible` para que el tooltip no se corte. Los segmentos tienen `min-width: 3px` y `cursor: pointer` para mejorar la interacción.
 - **Sin animaciones** en ningún cambio de filtro o año. Los gráficos Chart.js secundarios llevan `animation: false`.
-- **Persistencia de preferencias:** el dashboard guarda en `localStorage` (clave `payslip-dashboard-prefs`) el año seleccionado, modo de vista (mensual/quincenas), modo de gráfico (single/dual/waterfall/divergent) y estado de los checkboxes de segmentos. Al reabrir el archivo HTML, se restauran automáticamente.
+- **Persistencia de preferencias:** el dashboard guarda en `localStorage` (clave `payslip-dashboard-prefs`) el año seleccionado, modo de vista (mensual/quincenas), modo de gráfico (single/dual/waterfall/divergent), estado de los checkboxes de segmentos, y modo de ocultar importes. Al reabrir el archivo HTML, se restauran automáticamente.
 
 ### Vista Mensual vs. Quincenas
 
@@ -470,3 +346,15 @@ const segPct = (v / cashGross * 100).toFixed(3);
 // Incorrecto: segmentos más pequeños de lo debido
 // const segPct = (v / maxGross * 100).toFixed(3);
 ```
+
+### Modo privacidad (ocultar importes)
+
+- **Botón toggle** en el panel de controles (sección "Privacidad"): `👁️ Importes` / `🙈 Importes`
+- **Estado:** la variable `hideAmounts` controla si los importes se ocultan. Se guarda en localStorage junto con las demás preferencias.
+- **Comportamiento:** cuando está activo, todos los valores monetarios y porcentajes se reemplazan por `•••` o `••%`
+- **Funciones helper:**
+  - `fmtH(n)` — versión de `fmt()` que muestra `•••` si `hideAmounts` es true
+  - `fmt2H(n)` — versión de `fmt2()` con ocultación
+  - `pctH(n)` — versión de `pct()` que muestra `••%` si `hideAmounts` es true
+- **Áreas afectadas:** KPIs, tooltips de segmentos, valores "neto/bonus" junto a las barras, tabla comparativa, panel de ahorro, tooltips de gráficos Chart.js
+- **Las barras mantienen su proporción visual** aunque los valores estén ocultos, permitiendo ver la distribución sin revelar cifras exactas
