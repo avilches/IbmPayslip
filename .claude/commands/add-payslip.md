@@ -4,6 +4,16 @@ description: Procesa una nómina IBM nueva y actualiza JSON, MD y dashboard
 
 El usuario ha añadido una nómina nueva. Sigue estos pasos al pie de la letra. Lee el CLAUDE.md completo antes de empezar si no lo tienes en contexto.
 
+## Paso 0 — Localizar el PDF
+
+Si el usuario no indica una ruta concreta, busca primero PDFs nuevos en `data/` que no tengan ya una entrada en el `AAAA.json` correspondiente (compara por fecha/id).
+
+Si en `data/` no hay ningún PDF nuevo (todos ya están registrados en el JSON), busca en `~/Downloads` (y si tampoco aparece nada, en `~/Desktop`) ficheros con nombre tipo `payslip*` o `nomina*`. Es habitual que las nóminas se descarguen ahí antes de moverlas al proyecto.
+
+Antes de dar por bueno un PDF encontrado en `~/Downloads`/`~/Desktop`, **léelo por dentro** (no te fíes del nombre del fichero) y compara el período de pago y el neto reales contra lo que indica el nombre — los nombres de fichero a veces tienen erratas (fecha o importe mal escritos).
+
+Una vez procesada la nómina (Pasos 1-7), renombra el PDF siguiendo la convención del proyecto `payslip-YYYY-MM-DD-NNNN.NN.pdf` (fecha de pago real + neto real) y muévelo a `data/`.
+
 ## Paso 1 — Leer el PDF
 
 Lee el fichero PDF indicado por el usuario (o el más reciente en `data/` si no especifica).
